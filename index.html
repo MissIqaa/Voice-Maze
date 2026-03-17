@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Maze Adventure</title>
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --secondary: #FFD700;
+            --accent: #FF5A5F;
+            --wall: #2C3E50;
+            --path: #FFFFFF;
+            --sidebar-bg: #F8F9FA;
+            --text: #2C3E50;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body, html {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #E0E7FF;
+            color: var(--text);
+        }
+
+        /* Layout Container */
+        .app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* --- LEFT SIDE: MAZE AREA --- */
+        #maze-section {
+            flex: 0 0 75%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+        }
+
+        #maze-container {
+            position: relative;
+            background-color: var(--wall);
+            border: 10px solid var(--wall);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: grid;
+        }
+
+        .cell {
+            background-color: var(--path);
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Borders act as walls */
+        .w-n { border-top: 4px solid var(--wall); }
+        .w-e { border-right: 4px solid var(--wall); }
+        .w-s { border-bottom: 4px solid var(--wall); }
+        .w-w { border-left: 4px solid var(--wall); }
+
+        #player {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+
+        #goal {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        /* Shake Animation for Invalid Moves */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        .shake { animation: shake 0.25s cubic-bezier(.36,.07,.19,.97) both; }
+
+        /* --- RIGHT SIDE: SIDEBAR --- */
+        #sidebar {
+            flex: 0 0 25%;
+            height: 100%;
+            background-color: var(--sidebar-bg);
+            border-left: 4px solid #CBD5E1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        h1 { color: var(--primary); font-size: 1.8rem; text-align: center; line-height: 1; }
+
+        .instruction-card {
+            background: #DBEAFE;
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid var(--primary);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .char-display {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        #current-char-icon { font-size: 3rem; display: block; }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .label { font-weight: bold; font-size: 0.8rem; color: #64748B; margin-top: 5px; }
+
+        button {
+            padding: 10px;
+            border: 2px solid #CBD5E1;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+        button:hover { background: #F1F5F9; }
+        button.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Mic Button */
+        #mic-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px 0;
+        }
+        #mic-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            font-size: 2.5rem;
+            border: none;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+        }
+        #mic-btn.listening {
+            background: var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 90, 95, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 90, 95, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 90, 95, 0); }
+        }
+
+        .speech-box {
+            background: #334155;
+            color: white;
+            padding: 12px;
+            border-radius: 10px;
+            min-height: 80px;
+            font-size: 0.9rem;
+        }
+        #transcript { color: var(--secondary); font-weight: bold; display: block; font-size: 1.1rem; }
+
+        .stat-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        #reset-btn { background: var(--accent); color: white; border: none; padding: 15px; font-size: 1.1rem; }
+
+        /* Victory Overlay */
+        #victory-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            text-align: center;
+        }
+        #victory-overlay h2 { font-size: 4rem; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <section id="maze-section">
+        <div id="maze-container">
+            <div id="player">🤖</div>
+            <div id="goal">🚩</div>
+        </div>
+    </section>
+
+    <aside id="sidebar">
+        <h1>Voice Maze Adventure</h1>
+        
+        <div class="instruction-card">
+            Say the full instruction:<br>
+            <strong>"Go up", "Go down", "Move left", "Move right"</strong>
+        </div>
+
+        <div class="char-display">
+            <span id="current-char-icon">🤖</span>
+            <span id="current-char-name">Robot Explorer</span>
+        </div>
+
+        <p class="label">CHOOSE CHARACTER</p>
+        <div class="btn-grid">
+            <button class="active" onclick="setChar('🤖', 'Robot Explorer', this)">🤖 Robot</button>
+            <button onclick="setChar('🐱', 'Adventure Cat', this)">🐱 Cat</button>
+            <button onclick="setChar('🏴‍☠️', 'Pirate', this)">🏴‍☠️ Pirate</button>
+            <button onclick="setChar('👩‍🚀', 'Astronaut', this)">👩‍🚀 Astro</button>
+        </div>
+
+        <p class="label">DIFFICULTY</p>
+        <div class="btn-grid">
+            <button class="active" onclick="setDifficulty(8, this)">Easy</button>
+            <button onclick="setDifficulty(10, this)">Medium</button>
+            <button onclick="setDifficulty(12, this)" style="grid-column: span 2;">Hard</button>
+        </div>
+
+        <div id="mic-container">
+            <button id="mic-btn" onclick="toggleSpeech()">🎤</button>
+            <p id="mic-status" style="margin-top:5px; font-weight:bold; color:var(--accent); visibility:hidden;">Listening...</p>
+        </div>
+
+        <div class="speech-box">
+            You said:
+            <span id="transcript">...</span>
+        </div>
+
+        <div class="stat-bar">
+            <span>Moves:</span>
+            <span id="move-count">0</span>
+        </div>
+
+        <button id="reset-btn" onclick="initGame()">Reset Game</button>
+    </aside>
+</div>
+
+<div id="victory-overlay">
+    <h2>Great job!</h2>
+    <p style="font-size: 2rem;">You escaped the maze!</p>
+    <button onclick="closeVictory()" style="margin-top:20px; background:var(--primary); color:white; padding:15px 40px; font-size:1.5rem;">Play Again</button>
+</div>
+
+<script>
+    let size = 8;
+    let grid = [];
+    let playerPos = { x: 0, y: 0 };
+    let goalPos = { x: 0, y: 0 };
+    let moves = 0;
+    let isGameOver = false;
+
+    const mazeContainer = document.getElementById('maze-container');
+    const playerEl = document.getElementById('player');
+    const goalEl = document.getElementById('goal');
+    const moveDisplay = document.getElementById('move-count');
+    const transcriptEl = document.getElementById('transcript');
+
+    // --- Maze Generation (Recursive Backtracker) ---
+    function initGame() {
+        isGameOver = false;
+        moves = 0;
+        moveDisplay.innerText = moves;
+        document.getElementById('victory-overlay').style.display = 'none';
+        
+        grid = Array.from({ length: size }, () => 
+            Array.from({ length: size }, () => ({ n:true, e:true, s:true, w:true, visited: false }))
+        );
+
+        generateMaze(0, 0);
+        
+        // Random Goal Position (away from start)
+        goalPos = { x: size - 1, y: Math.floor(Math.random() * size) };
+        playerPos = { x: 0, y: 0 };
+
+        setupBoard();
+    }
+
+    function generateMaze(x, y) {
+        grid[y][x].visited = true;
+        const dirs = [['n',0,-1], ['e',1,0], ['s',0,1], ['w',-1,0]].sort(() => Math.random() - 0.5);
+
+        for (let [d, dx, dy] of dirs) {
+            let nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < size && ny >= 0 && ny < size && !grid[ny][nx].visited) {
+                grid[y][x][d] = false;
+                grid[ny][nx][d === 'n' ? 's' : d === 'e' ? 'w' : d === 's' ? 'n' : 'e'] = false;
+                generateMaze(nx, ny);
+            }
+        }
+    }
+
+    function setupBoard() {
+        const cellSize = Math.min((window.innerHeight * 0.75) / size, (window.innerWidth * 0.7) / size);
+        mazeContainer.style.width = (cellSize * size) + 'px';
+        mazeContainer.style.height = (cellSize * size) + 'px';
+        mazeContainer.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+        
+        // Clear previous cells
+        const oldCells = mazeContainer.querySelectorAll('.cell');
+        oldCells.forEach(c => c.remove());
+
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (grid[y][x].n) cell.classList.add('w-n');
+                if (grid[y][x].e) cell.classList.add('w-e');
+                if (grid[y][x].s) cell.classList.add('w-s');
+                if (grid[y][x].w) cell.classList.add('w-w');
+                mazeContainer.appendChild(cell);
+            }
+        }
+
+        playerEl.style.width = goalEl.style.width = cellSize + 'px';
+        playerEl.style.height = goalEl.style.height = cellSize + 'px';
+        playerEl.style.fontSize = (cellSize * 0.6) + 'px';
+        goalEl.style.fontSize = (cellSize * 0.6) + 'px';
+        
+        updatePositions();
+    }
+
+    function updatePositions() {
+        const cellSize = mazeContainer.offsetWidth / size;
+        playerEl.style.left = (playerPos.x * cellSize) + 'px';
+        playerEl.style.top = (playerPos.y * cellSize) + 'px';
+        goalEl.style.left = (goalPos.x * cellSize) + 'px';
+        goalEl.style.top = (goalPos.y * cellSize) + 'px';
+    }
+
+    // --- Movement Logic ---
+    function movePlayer(dir) {
+        if (isGameOver) return;
+        
+        const cell = grid[playerPos.y][playerPos.x];
+        let moved = false;
+
+        if (dir === 'go up' && !cell.n) { playerPos.y--; moved = true; }
+        else if (dir === 'go down' && !cell.s) { playerPos.y++; moved = true; }
+        else if (dir === 'move left' && !cell.w) { playerPos.x--; moved = true; }
+        else if (dir === 'move right' && !cell.e) { playerPos.x++; moved = true; }
+
+        if (moved) {
+            moves++;
+            moveDisplay.innerText = moves;
+            updatePositions();
+            if (playerPos.x === goalPos.x && playerPos.y === goalPos.y) {
+                victory();
+            }
+        } else {
+            // Shake animation for wall hit OR invalid phrasing
+            playerEl.classList.add('shake');
+            setTimeout(() => playerEl.classList.remove('shake'), 300);
+        }
+    }
+
+    function victory() {
+        isGameOver = true;
+        document.getElementById('victory-overlay').style.display = 'flex';
+    }
+
+    function closeVictory() {
+        initGame();
+    }
+
+    // --- Voice Logic (Web Speech API) ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+    let isListening = false;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            document.getElementById('mic-btn').classList.add('listening');
+            document.getElementById('mic-status').style.visibility = 'visible';
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            document.getElementById('mic-btn').classList.remove('listening');
+            document.getElementById('mic-status').style.visibility = 'hidden';
+        };
+
+        recognition.onresult = (event) => {
+            const result = event.results[0][0].transcript.toLowerCase().trim();
+            transcriptEl.innerText = result;
+
+            // Strict Validation
+            const validCommands = ['go up', 'go down', 'move left', 'move right'];
+            if (validCommands.includes(result)) {
+                movePlayer(result);
+            } else {
+                // If they said "up" etc, result is invalid, trigger shake
+                movePlayer('invalid');
+            }
+        };
+    }
+
+    function toggleSpeech() {
+        if (!recognition) {
+            alert("Speech recognition not supported in this browser. Please use Chrome.");
+            return;
+        }
+        if (isListening) recognition.stop();
+        else recognition.start();
+    }
+
+    // --- Settings UI ---
+    function setChar(icon, name, btn) {
+        document.getElementById('current-char-icon').innerText = icon;
+        document.getElementById('current-char-name').innerText = name;
+        playerEl.innerText = icon;
+        document.querySelectorAll('#sidebar .btn-grid:nth-of-type(1) button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    function setDifficulty(newSize, btn) {
+        size = newSize;
+        document.querySelectorAll('#sidebar .btn-grid:nth-of-type(2) button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        initGame();
+    }
+
+    window.onresize = setupBoard;
+    initGame();
+</script>
+
+</body>
+</html>
